@@ -20,6 +20,14 @@ config = {
             "region": "",
             "secrets": {"access_key_id": "", "secret_access_key": ""},
         },
+        "scaleway": {
+            "enabled": False,
+            "ips": [],
+            "scaling": {"min_scaling": 0, "max_scaling": 0},
+            "size": "",
+            "region": "",
+            "secrets": {"access_token": ""},
+        },
     },
 }
 
@@ -31,7 +39,7 @@ load_dotenv()
 config["auth"]["username"] = os.environ.get("USERNAME", "changeme")
 config["auth"]["password"] = os.environ.get("PASSWORD", "changeme")
 
-# Set DigitalOceana config
+# Set DigitalOcean config
 config["providers"]["digitalocean"]["enabled"] = os.environ.get(
     "DIGITALOCEAN_ENABLED", False
 )
@@ -67,3 +75,23 @@ config["providers"]["aws"]["scaling"]["max_scaling"] = int(
 )
 config["providers"]["aws"]["size"] = os.environ.get("AWS_SIZE", "t2.micro")
 config["providers"]["aws"]["region"] = os.environ.get("AWS_REGION", "eu-west-2")
+
+# Set Scaleway config
+config["providers"]["scaleway"]["enabled"] = os.environ.get("SCALEWAY_ENABLED", False)
+config["providers"]["scaleway"]["secrets"]["access_token"] = os.environ.get(
+    "SCALEWAY_ACCESS_TOKEN"
+)
+
+config["providers"]["scaleway"]["secrets"]["project"] = os.environ.get(
+    "SCALEWAY_PROJECT"
+)
+config["providers"]["scaleway"]["scaling"]["min_scaling"] = int(
+    os.environ.get("SCALEWAY_MIN_SCALE", 2)
+)
+config["providers"]["scaleway"]["scaling"]["max_scaling"] = int(
+    os.environ.get("SCALEWAY_MAX_SCALE", 2)
+)
+config["providers"]["scaleway"]["size"] = os.environ.get("SCALEWAY_SIZE", "DEV1-S")
+config["providers"]["scaleway"]["region"] = os.environ.get(
+    "SCALEWAY_REGION", "nl-ams-1"
+)
