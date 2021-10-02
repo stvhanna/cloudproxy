@@ -20,9 +20,10 @@ CloudProxy exposes an API with the IPs and credentials of the provisioned proxie
 ### Providers supported:
 * [DigitalOcean](docs/digitalocean.md)
 * [AWS](docs/aws.md)
+* [Google Cloud](docs/gcp.md)
+* [Hetzner](docs/hetzner.md)
 
 ### Planned:
-* Google Cloud
 * Azure
 * Scaleway
 * Vultr
@@ -34,6 +35,7 @@ This project was inspired by [Scrapoxy](https://github.com/fabienvauchelles/scra
 
 The primary advantage of CloudProxy over Scrapoxy is that CloudProxy only requires an API token from a cloud provider. CloudProxy automatically deploys and configures the proxy on the cloud instances without the user needing to preconfigure or copy an image.
 
+Please always scrape nicely, respectfully and do not slam servers.
 
 <!-- GETTING STARTED -->
 ## Getting Started
@@ -50,9 +52,8 @@ All you need is:
 #### Environment variables:
 
 ##### Required
-`` USERNAME`` - set the username for the forward proxy.
-
-`` PASSWORD`` - set the password for the forward proxy.
+- `USERNAME` - set the username for the forward proxy.
+- `PASSWORD` - set the password for the forward proxy.
 
 ##### Optional
 
@@ -72,7 +73,7 @@ For example:
        -it -p 8000:8000 laffin/cloudproxy:latest
    ```
 
-It is recommended to use a Docker image tagged to a version e.g. ```laffin/cloudproxy:0.3.0-beta```, see [releases](https://github.com/claffin/cloudproxy/releases) for latest version.
+It is recommended to use a Docker image tagged to a version e.g. `laffin/cloudproxy:0.6.0-beta`, see [releases](https://github.com/claffin/cloudproxy/releases) for latest version.
 
 <!-- USAGE EXAMPLES -->
 ## Usage
@@ -98,7 +99,7 @@ my_request = requests.get("https://api.ipify.org", proxies=proxies)
 
 ![cloudproxy-ui](docs/images/cloudproxy-ui.png)
 
-You can manage CloudProxy via an API and UI. You can access the UI at ```http://localhost/ui```.
+You can manage CloudProxy via an API and UI. You can access the UI at `http://localhost:8000/ui`.
 
 You can scale up and down your proxies and remove them for each provider via the UI. 
 
@@ -111,9 +112,9 @@ You can scale up and down your proxies and remove them for each provider via the
     curl -X 'GET' 'http://localhost:8000/' -H 'accept: application/json'
 
 #### Response
-
-    {"ips":["http://username:password:192.168.0.1:8899", "http://username:password:192.168.0.2:8899"]}
-
+```json
+{"ips":["http://username:password:192.168.0.1:8899", "http://username:password:192.168.0.2:8899"]}
+```
 ### List random proxy server
 #### Request
 
@@ -122,9 +123,9 @@ You can scale up and down your proxies and remove them for each provider via the
     curl -X 'GET' 'http://localhost:8000/random' -H 'accept: application/json'
 
 #### Response
-
-    ["http://username:password:192.168.0.1:8899"]
-
+```json
+["http://username:password:192.168.0.1:8899"]
+```
 ### Remove proxy server
 #### Request
 
@@ -133,49 +134,125 @@ You can scale up and down your proxies and remove them for each provider via the
     curl -X 'DELETE' 'http://localhost:8000/destroy?ip_address=192.1.1.1' -H 'accept: application/json'
 
 #### Response
-
-    ["Proxy to be destroyed"]
-
-### Get provider
+```json
+["Proxy <{IP}> to be destroyed"]
+```
+### Restart proxy server (AWS & GCP only)
 #### Request
 
-`GET /provider/digitalocean`
+`DELETE /restart`
+
+    curl -X 'DELETE' 'http://localhost:8000/restart?ip_address=192.1.1.1' -H 'accept: application/json'
+
+#### Restart
+```json
+["Proxy <{IP}> to be restarted"]
+```
+### Get providers
+#### Request
+
+`GET /providers`
+
+    curl -X 'GET' 'http://localhost:8000/providers' -H 'accept: application/json'
+
+#### Response
+
+```json
+{
+  "digitalocean": {
+    "enabled": "True",
+    "ips": [
+      "x.x.x.x"
+    ],
+    "scaling": {
+      "min_scaling": 1,
+      "max_scaling": 2
+    },
+    "size": "s-1vcpu-1gb",
+    "region": "lon1"
+  },
+  "aws": {
+    "enabled": false,
+    "ips": [],
+    "scaling": {
+      "min_scaling": 2,
+      "max_scaling": 2
+    },
+    "size": "t2.micro",
+    "region": "eu-west-2",
+    "ami": "ami-096cb92bb3580c759",
+    "spot": false
+  },
+  "gcp": {
+    "enabled": false,
+    "project": null,
+    "ips": [],
+    "scaling": {
+      "min_scaling": 2,
+      "max_scaling": 2
+    },
+    "size": "f1-micro",
+    "zone": "us-central1-a",
+    "image_project": "ubuntu-os-cloud",
+    "image_family": "ubuntu-minimal-2004-lts"
+  },
+  "hetzner": {
+    "enabled": false,
+    "ips": [],
+    "scaling": {
+      "min_scaling": 2,
+      "max_scaling": 2
+    },
+    "size": "cx11",
+    "location": "nbg1",
+    "datacenter": ""
+  }
+}
+```
+
+#### Request
+
+`GET /providers/digitalocean`
 
     curl -X 'GET' 'http://localhost:8000/providers/digitalocean' -H 'accept: application/json'
 
 #### Response
 
-      {
-        "ips": [
-          "192.1.1.2",
-          "192.1.1.3"
-        ],
-        "scaling": {
-          "min_scaling": 2,
-          "max_scaling": 2
-        }
-      }
+```json
+{
+  "enabled": "True",
+  "ips": [
+    "x.x.x.x"
+  ],
+  "scaling": {
+    "min_scaling": 2,
+    "max_scaling": 2
+  },
+  "size": "s-1vcpu-1gb",
+  "region": "lon1"
+}
+```
 
 ### Update provider
 #### Request
 
-`PATCH /provider/digitalocean`
+`PATCH /providers/digitalocean`
 
     curl -X 'PATCH' 'http://localhost:8000/providers/digitalocean?min_scaling=5&max_scaling=5' -H 'accept: application/json'
 
 #### Response
-
-      {
-        "ips": [
-          "192.1.1.2",
-          "192.1.1.3"
-        ],
-        "scaling": {
-          "min_scaling": 5,
-          "max_scaling": 5
-        }
-      }
-
+```json
+{
+  "ips": [
+    "192.1.1.2",
+    "192.1.1.3"
+  ],
+  "scaling": {
+    "min_scaling": 5,
+    "max_scaling": 5
+  }
+}
+```
 CloudProxy runs on a schedule of every 30 seconds, it will check if the minimum scaling has been met, if not then it will deploy the required number of proxies. The new proxy info will appear in IPs once they are deployed and ready to be used.
 
 <!-- ROADMAP -->
@@ -185,7 +262,8 @@ The project is at early alpha with limited features. In the future more provider
 
 See the [open issues](https://github.com/claffin/cloudproxy/issues) for a list of proposed features (and known issues).
 
-
+## Limitations
+This method of scraping via cloud providers has limitations, many websites have anti-bot protections and blacklists in place which can limit the effectiveness of CloudProxy. Many websites block datacenter IPs and IPs may be tarnished already due to IP recycling. Rotating the CloudProxy proxies regularly may improve results. The best solution for scraping is via proxy services providing residential IPs, which are less likely to be blocked, however are much more expensive. CloudProxy is a much cheaper alternative for scraping sites that do not block datacenter IPs nor have advanced anti-bot protection. This a point frequently made when people share this project which is why I am including this in the README. 
 
 <!-- CONTRIBUTING -->
 ## Contributing
@@ -198,7 +276,7 @@ Contributions are what make the open source community such an amazing place to b
 4. Push to the Branch (`git push origin feature/AmazingFeature`)
 5. Open a Pull Request
 
-
+My target is to review all PRs within a week of being submitted, though sometimes it may be sooner or later.
 
 <!-- LICENSE -->
 ## License
@@ -210,7 +288,7 @@ Distributed under the MIT License. See `LICENSE` for more information.
 <!-- CONTACT -->
 ## Contact
 
-Your Name - [@christianlaffin](https://twitter.com/christianlaffin) - christian.laffin@gmail.com
+Christian Laffin - [@christianlaffin](https://twitter.com/christianlaffin) - christian.laffin@gmail.com
 
 Project Link: [https://github.com/claffin/cloudproxy](https://github.com/claffin/cloudproxy)
 

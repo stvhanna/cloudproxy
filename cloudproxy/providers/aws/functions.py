@@ -2,7 +2,7 @@ import boto3
 import os
 import json
 import botocore as botocore
-
+import botocore.exceptions
 
 from cloudproxy.providers.config import set_auth
 from cloudproxy.providers.settings import config
@@ -43,23 +43,76 @@ def create_proxy():
         pass
     sg_id = ec2_client.describe_security_groups(GroupNames=["cloudproxy"])
     sg_id = sg_id["SecurityGroups"][0]["GroupId"]
-    instance = ec2.create_instances(
-        ImageId="ami-096cb92bb3580c759",
-        MinCount=1,
-        MaxCount=1,
-        InstanceType=config["providers"]["aws"]["size"],
-        NetworkInterfaces=[
-            {"DeviceIndex": 0, "AssociatePublicIpAddress": True, "Groups": [sg_id]}
-        ],
-        TagSpecifications=tag_specification,
-        UserData=user_data,
-    )
+    if config["providers"]["aws"]["spot"] == 'persistent':
+        instance = ec2.create_instances(
+            ImageId=config["providers"]["aws"]["ami"],
+            MinCount=1,
+            MaxCount=1,
+            InstanceType=config["providers"]["aws"]["size"],
+            NetworkInterfaces=[
+                {"DeviceIndex": 0, "AssociatePublicIpAddress": True, "Groups": [sg_id]}
+            ],
+            InstanceMarketOptions={
+                "MarketType": "spot",
+                "SpotOptions": {
+                    "InstanceInterruptionBehavior": "stop",
+                    "SpotInstanceType": "persistent"
+                }
+            },
+            TagSpecifications=tag_specification,
+            UserData=user_data,
+        )
+    elif config["providers"]["aws"]["spot"] == 'one-time':
+            instance = ec2.create_instances(
+                ImageId=config["providers"]["aws"]["ami"],
+                MinCount=1,
+                MaxCount=1,
+                InstanceType=config["providers"]["aws"]["size"],
+                NetworkInterfaces=[
+                    {"DeviceIndex": 0, "AssociatePublicIpAddress": True, "Groups": [sg_id]}
+                ],
+                InstanceMarketOptions={
+                    "MarketType": "spot",
+                    "SpotOptions": {
+                        "InstanceInterruptionBehavior": "terminate",
+                        "SpotInstanceType": "one-time"
+                    }
+                },
+                TagSpecifications=tag_specification,
+                UserData=user_data,
+            )
+    else:
+        instance = ec2.create_instances(
+            ImageId=config["providers"]["aws"]["ami"],
+            MinCount=1,
+            MaxCount=1,
+            InstanceType=config["providers"]["aws"]["size"],
+            NetworkInterfaces=[
+                {"DeviceIndex": 0, "AssociatePublicIpAddress": True, "Groups": [sg_id]}
+            ],
+            TagSpecifications=tag_specification,
+            UserData=user_data,
+        )
     return instance
 
 
 def delete_proxy(instance_id):
     ids = [instance_id]
     deleted = ec2.instances.filter(InstanceIds=ids).terminate()
+    if config["providers"]["aws"]["spot"]:
+        associated_spot_instance_requests = ec2_client.describe_spot_instance_requests(
+            Filters=[
+                {
+                    'Name': 'instance-id',
+                    'Values': ids
+                }
+            ]
+        )
+        spot_instance_id_list = []
+        for spot_instance in associated_spot_instance_requests["SpotInstanceRequests"]:
+            spot_instance_id_list.append(spot_instance.get("SpotInstanceRequestId"))
+        if spot_instance_id_list:
+            ec2_client.cancel_spot_instance_requests(SpotInstanceRequestIds=spot_instance_id_list)
     return deleted
 
 
@@ -71,7 +124,13 @@ def stop_proxy(instance_id):
 
 def start_proxy(instance_id):
     ids = [instance_id]
-    started = ec2.instances.filter(InstanceIds=ids).start()
+    try:
+        started = ec2.instances.filter(InstanceIds=ids).start()
+    except botocore.exceptions.ClientError as error:
+        if error.response['Error']['Code'] == 'IncorrectSpotRequestState':
+            return None
+        else:
+            raise error
     return started
 
 
